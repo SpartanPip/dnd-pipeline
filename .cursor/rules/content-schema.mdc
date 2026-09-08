@@ -1,0 +1,28 @@
+---
+description: Schema and conventions for campaign/article/map content files
+globs: content/**,src/lib/content/**,src/lib/search/**,.cursor/skills/campaign-ramble/**
+alwaysApply: false
+---
+
+# Content schema
+
+Content lives in `content/campaigns/<slug>/` as plain files, not a
+database — `campaign.json`, `map.json`, and `articles/<slug>.md`
+(frontmatter + markdown body). The Zod schemas in
+`src/lib/content/schema.ts` are the single source of truth; always
+validate through the helpers in `src/lib/content/{campaigns,articles,map}.ts`
+instead of writing files by hand.
+
+- Articles: `title`, `slug`, `tags` (array), one-sentence `summary`,
+  optional `image`, and a markdown `body` kept to roughly half a page
+  (`ARTICLE_WORD_LIMIT` in `schema.ts`). Link to other articles with plain
+  markdown links to `/campaigns/<slug>/articles/<other-slug>` so readers
+  can navigate between them.
+- Map cells: integer `(x, y)` centered on `(0, 0)`, an `icon` key that must
+  exist in `MAP_ICONS` (`src/lib/icons.ts`), a `label`, and a `search`
+  payload (`text`/`tags`) or `articleSlug` describing what clicking the
+  icon should show.
+- After bulk edits, run `pnpm lint:content` to catch oversized articles or
+  unknown map icons.
+- Never bypass the API route handlers from client components — they own
+  filesystem access and Zod validation.

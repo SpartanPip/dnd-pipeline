@@ -1,0 +1,27 @@
+---
+description: Front-end styling and component conventions for the DnD Lore app
+alwaysApply: true
+---
+
+# Front-end style
+
+Full rationale lives in `STYLE_GUIDE.md` — read it once, then follow these
+rules on every change:
+
+- Use `shadcn/ui` primitives from `src/components/ui/` for every button,
+  input, dialog, badge, tooltip, card, etc. Never hand-roll one. Missing a
+  primitive? Run `pnpm dlx shadcn@latest add <component>`.
+- Only use the color tokens defined in `src/app/globals.css`
+  (`bg-background`, `text-muted-foreground`, `bg-primary`, ...). Don't
+  inline new hex/oklch colors.
+- Icons: `lucide-react` for UI chrome, `react-icons/gi` only through the
+  curated map in `src/lib/icons.ts` for the campaign map.
+- Any user-facing image must go through
+  `src/components/editable-image.tsx` so hover-to-replace works
+  consistently.
+- Default to Server Components; add `"use client"` only to the specific
+  interactive island that needs state/effects/browser APIs.
+- Every list/empty state renders a short, friendly message — never a blank
+  screen.
+- Keep filenames kebab-case, components PascalCase, one component per
+  file.

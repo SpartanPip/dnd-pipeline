@@ -1,0 +1,35 @@
+{
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "icon": "port",
+      "label": "Saltmere",
+      "search": { "tags": ["location", "port-city"] },
+      "articleSlug": "saltmere"
+    },
+    {
+      "x": 2,
+      "y": 1,
+      "icon": "castle",
+      "label": "Ravenspire Keep",
+      "search": { "tags": ["location", "castle"] },
+      "articleSlug": "ravenspire-keep"
+    },
+    {
+      "x": -2,
+      "y": -1,
+      "icon": "temple",
+      "label": "The Sunken Temple",
+      "search": { "tags": ["location", "ruins", "cult"] },
+      "articleSlug": "sunken-temple"
+    },
+    {
+      "x": 1,
+      "y": -2,
+      "icon": "forest",
+      "label": "Whisperwood",
+      "search": { "text": "whisperwood", "tags": ["location"] }
+    }
+  ]
+}
