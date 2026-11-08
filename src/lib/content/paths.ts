@@ -29,6 +29,14 @@ export function articlePath(campaignSlug: string, articleSlug: string): string {
   return path.join(articlesDir(campaignSlug), `${articleSlug}.md`);
 }
 
+export function namesJsonPath(campaignSlug: string): string {
+  return path.join(campaignDir(campaignSlug), "names.json");
+}
+
+export function sessionsDir(campaignSlug: string): string {
+  return path.join(campaignDir(campaignSlug), "sessions");
+}
+
 export function campaignUploadsDir(campaignSlug: string): string {
   return path.join(UPLOADS_ROOT, campaignSlug);
 }

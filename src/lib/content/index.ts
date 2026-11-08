@@ -5,3 +5,4 @@ export * from "./markdown";
 export * from "./campaigns";
 export * from "./articles";
 export * from "./map";
+export * from "./names";

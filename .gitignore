@@ -40,3 +40,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .superpowers/
+
+# real campaigns and their images stay local; only the example is tracked
+/content/campaigns/*
+!/content/campaigns/sunken-isles/
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# pipeline
+/pipeline.config.json
+/pipeline/.venv/
+__pycache__/
+.pytest_cache/

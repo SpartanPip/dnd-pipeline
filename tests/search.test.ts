@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { searchArticles, suggestArticles, relatedArticles, allTags } from "@/lib/search";
-import type { Article } from "@/lib/content/schema";
+import { articleSchema, type Article } from "@/lib/content/schema";
 
-const articles: Article[] = [
+const articles: Article[] = (
+  [
   {
     title: "Ravenspire Keep",
     slug: "ravenspire-keep",
@@ -24,7 +25,8 @@ const articles: Article[] = [
     summary: "The last free port in the Sunken Isles.",
     body: "Home base for the party, run by a council of captains.",
   },
-];
+] as unknown[]
+).map((a) => articleSchema.parse(a));
 
 describe("searchArticles", () => {
   it("returns every article for an empty query", () => {

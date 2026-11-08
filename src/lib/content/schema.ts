@@ -31,6 +31,28 @@ export const campaignSchema = z.object({
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 
+export const cardKindSchema = z.enum([
+  "character",
+  "event",
+  "place",
+  "faction",
+  "item",
+  "spell",
+  "lore",
+  "other",
+]);
+export type CardKind = z.infer<typeof cardKindSchema>;
+
+/** An open question the pipeline attached to a card; answers feed back into processing. */
+export const questionSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().min(1),
+  answer: z.string().optional(),
+  answeredAt: z.string().optional(),
+  appliedAt: z.string().optional(),
+});
+export type Question = z.infer<typeof questionSchema>;
+
 /** Frontmatter stored at the top of every `content/.../articles/*.md` file. */
 export const articleFrontmatterSchema = z.object({
   title: z.string().min(1).max(100),
@@ -40,6 +62,16 @@ export const articleFrontmatterSchema = z.object({
   summary: z.string().min(1).max(200),
   /** Public path to an optional hero image. */
   image: z.string().optional(),
+  kind: cardKindSchema.optional(),
+  /** The pipeline only ever edits articles it created itself. */
+  origin: z.enum(["pipeline", "manual"]).default("manual"),
+  sessions: z.array(z.number().int().positive()).default([]),
+  /** Story order for the timeline: session * 10000 + position within the session. */
+  order: z.number().int().optional(),
+  imageStatus: z.enum(["pending", "generated"]).optional(),
+  /** Appearance details and redraw notes that image prompts are built from. */
+  imageNotes: z.string().optional(),
+  questions: z.array(questionSchema).default([]),
 });
 export type ArticleFrontmatter = z.infer<typeof articleFrontmatterSchema>;
 
@@ -78,5 +110,17 @@ export const mapDataSchema = z.object({
 });
 export type MapData = z.infer<typeof mapDataSchema>;
 
+export const namesSchema = z.object({
+  known: z.array(
+    z.object({ name: z.string().min(1), aliases: z.array(z.string()).default([]) }),
+  ),
+  /** Short list of names expected this session; biases transcription. */
+  listening: z.array(z.string().min(1)),
+});
+export type Names = z.infer<typeof namesSchema>;
+
 /** Soft content-length guideline enforced by `pnpm lint:content`, not the build. */
 export const ARTICLE_WORD_LIMIT = 300;
+
+/** Pipeline cards are snapshots and stay much shorter than hand-written articles. */
+export const CARD_WORD_LIMIT = 80;
