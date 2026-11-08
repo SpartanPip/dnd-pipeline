@@ -122,3 +122,52 @@ def test_apply_answers_renames_and_marks_applied(repo):
     names = content.read_names("camp").known
     assert names[0].name == "Gravelle" and "Gravel" in names[0].aliases
     assert organize.apply_answers("camp", llm) == 0
+
+
+def test_cards_with_missing_keys_or_bad_kind_are_kept_or_dropped_not_fatal(repo):
+    n = setup_session(repo, ["x"])
+    llm = FakeLLM({"extract": [{"cards": [
+        {"title": "Odd", "kind": "battle", "summary": "S.", "body": "B."},
+        {"kind": "event"},
+    ]}]})
+    organize.organize_session("camp", n, llm)
+    odd = content.read_card("camp", "odd")
+    assert odd.kind == "other" and odd.questions == []
+    assert len(content.list_cards("camp")) == 1
+
+
+def test_unreachable_llm_fails_session_without_skipping(repo):
+    import pytest
+    from dnd_pipeline.llm import LLMUnavailable
+
+    n = setup_session(repo, ["x"])
+
+    class Down:
+        def json(self, *a):
+            raise LLMUnavailable("connection refused")
+
+    with pytest.raises(LLMUnavailable):
+        organize.organize_session("camp", n, Down())
+    assert sessions.load_state("camp", n).organized_windows == 0
+
+
+def test_skipped_windows_are_recorded(repo):
+    n = setup_session(repo, ["a"])
+    organize.organize_session("camp", n, FakeLLM({"extract": ["bad", "bad"]}))
+    assert sessions.load_state("camp", n).skipped_windows == [0]
+
+
+def test_apply_answers_rereads_cards_renamed_earlier_in_the_loop(repo):
+    setup_session(repo, ["x"])
+    content.write_names("camp", content.Names(known=[{"name": "Gravel"}]))
+    qa = lambda i: Question(id=i, text="?", answer="yes", answeredAt="2026-11-07T00:00:00Z")
+    content.create_card("camp", Card(title="A Gravel", slug="a", summary="Gravel.", body="Gravel.",
+                                     origin="pipeline", questions=[qa("q1")]))
+    content.create_card("camp", Card(title="B", slug="b", summary="With Gravel.", body="Gravel again.",
+                                     origin="pipeline", questions=[qa("q2")]))
+    rename = {"title": "A Gravelle", "summary": "Gravelle.", "body": "Gravelle.", "appearance": "",
+              "renames": [{"from": "Gravel", "to": "Gravelle"}]}
+    keep = {"title": "B", "summary": "With Gravelle.", "body": "Gravelle again.", "appearance": "", "renames": []}
+    llm = FakeLLM({"apply": [rename, keep]})
+    organize.apply_answers("camp", llm)
+    assert "Gravelle again" in llm.calls[1][1]

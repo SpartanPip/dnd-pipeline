@@ -4,7 +4,9 @@ import logging
 import re
 import uuid
 from collections.abc import Callable
-from typing import Protocol
+from typing import Protocol, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from . import content, sessions
 from .content import CARD_WORD_LIMIT, Card, Question, tag
@@ -15,10 +17,64 @@ log = logging.getLogger(__name__)
 Progress = Callable[[float, str], None]
 KINDS = ["character", "event", "place", "faction", "item", "spell", "lore", "other"]
 MAX_INDEX_CARDS = 150
+MAX_ANSWERS_IN_CONTEXT = 50
 
 
 class StructuredLLM(Protocol):
     def json(self, system: str, user: str, schema: dict) -> dict: ...
+
+
+class ExtractCard(BaseModel):
+    title: str = Field(min_length=1)
+    kind: str = "other"
+    summary: str = ""
+    body: str = ""
+    tags: list[str] = []
+    characters: list[str] = []
+    links: list[str] = []
+    questions: list[str] = []
+    appearance: str = ""
+    map_icon: str = ""
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("empty title")
+        return v.strip()
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def _kind(cls, v: object) -> str:
+        return v if v in KINDS else "other"
+
+
+class ExtractOut(BaseModel):
+    cards: list[dict] = []
+    new_names: list[str] = []
+
+
+class MergeOut(BaseModel):
+    summary: str = ""
+    body: str = ""
+    appearance: str = ""
+
+
+class Rename(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    old: str = Field(alias="from")
+    new: str = Field(alias="to")
+
+
+class ApplyOut(BaseModel):
+    title: str = ""
+    summary: str = ""
+    body: str = ""
+    appearance: str = ""
+    renames: list[Rename] = []
+
+
+M = TypeVar("M", bound=BaseModel)
 
 
 def _str_list() -> dict:
@@ -144,7 +200,8 @@ def _context(slug: str, n: int) -> str:
     cards = content.list_cards(slug)
     cards.sort(key=lambda c: (n in c.sessions, c.order or 0), reverse=True)
     index = [f"- {c.title} [{c.kind or 'article'}]: {c.summary}" for c in cards[:MAX_INDEX_CARDS]]
-    answers = [f"- Q: {q.text} A: {q.answer}" for c in cards for q in c.questions if q.answer]
+    answered = sorted((q for c in cards for q in c.questions if q.answer), key=lambda q: q.answeredAt or "")
+    answers = [f"- Q: {q.text} A: {q.answer}" for q in answered[-MAX_ANSWERS_IN_CONTEXT:]]
     icons = ", ".join(sorted(content.map_icon_keys()))
     return (
         f"Known names: {', '.join(known) or 'none yet'}\n\n"
@@ -154,11 +211,12 @@ def _context(slug: str, n: int) -> str:
     )
 
 
-def _ask(llm: StructuredLLM, system: str, user: str, schema: dict) -> dict | None:
+def _ask(llm: StructuredLLM, system: str, user: str, schema: dict, model: type[M]) -> M | None:
+    """Two attempts at a usable answer. LLMUnavailable propagates so the job fails and can resume."""
     for attempt in (1, 2):
         try:
-            return llm.json(system, user, schema)
-        except LLMError as exc:
+            return model.model_validate(llm.json(system, user, schema))
+        except (LLMError, ValidationError) as exc:
             log.warning("LLM %s call failed (attempt %d): %s", schema["title"], attempt, exc)
     return None
 
@@ -180,44 +238,44 @@ def _questions(texts: list[str], existing: list[Question] = ()) -> list[Question
     return out
 
 
-def _tags(raw: dict) -> list[str]:
-    tags = [raw["kind"]] + [tag(c) for c in raw.get("characters", [])] + [tag(t) for t in raw.get("tags", [])]
+def _tags(raw: ExtractCard) -> list[str]:
+    tags = [raw.kind] + [tag(c) for c in raw.characters] + [tag(t) for t in raw.tags]
     return list(dict.fromkeys(t for t in tags if t))[:8]
 
 
-def _save_raw_card(slug: str, n: int, raw: dict, order: int, llm: StructuredLLM) -> Card:
-    existing = _session_card(slug, n, raw["title"])
+def _save_raw_card(slug: str, n: int, raw: ExtractCard, order: int, llm: StructuredLLM) -> Card:
+    existing = _session_card(slug, n, raw.title)
     if existing:
         merged = _ask(llm, MERGE_SYSTEM,
                       f"Card A:\n{existing.summary}\n{_strip_link_line(existing.body)}\nAppearance: {existing.imageNotes or ''}\n\n"
-                      f"Card B:\n{raw['summary']}\n{raw['body']}\nAppearance: {raw['appearance']}",
-                      MERGE_SCHEMA) or {
-            "summary": existing.summary,
-            "body": _strip_link_line(existing.body) + " " + raw["body"],
-            "appearance": "; ".join(filter(None, [existing.imageNotes, raw["appearance"]])),
-        }
+                      f"Card B:\n{raw.summary}\n{raw.body}\nAppearance: {raw.appearance}",
+                      MERGE_SCHEMA, MergeOut) or MergeOut(
+            summary=existing.summary,
+            body=_strip_link_line(existing.body) + " " + raw.body,
+            appearance="; ".join(filter(None, [existing.imageNotes, raw.appearance])),
+        )
         card = existing.model_copy(update={
-            "summary": merged["summary"][:200] or existing.summary,
-            "body": _trim_words(merged["body"]),
-            "imageNotes": merged["appearance"] or existing.imageNotes,
+            "summary": merged.summary[:200] or existing.summary,
+            "body": _trim_words(merged.body) or existing.body,
+            "imageNotes": merged.appearance or existing.imageNotes,
             "tags": list(dict.fromkeys(existing.tags + _tags(raw)))[:8],
-            "questions": _questions(raw["questions"], existing.questions),
+            "questions": _questions(raw.questions, existing.questions),
         })
         return content.update_card(slug, card)
 
     card = Card(
-        title=raw["title"][:100],
-        slug=content.slugify(raw["title"]) or "card",
-        summary=(raw["summary"] or raw["title"])[:200],
-        body=_trim_words(raw["body"]),
+        title=raw.title[:100],
+        slug=content.slugify(raw.title) or "card",
+        summary=(raw.summary or raw.title)[:200],
+        body=_trim_words(raw.body),
         tags=_tags(raw),
-        kind=raw["kind"],
+        kind=raw.kind,
         origin="pipeline",
         sessions=[n],
         order=order,
         imageStatus="pending",
-        imageNotes=raw["appearance"] or None,
-        questions=_questions(raw["questions"]),
+        imageNotes=raw.appearance or None,
+        questions=_questions(raw.questions),
     )
     return content.create_card(slug, card)
 
@@ -248,20 +306,24 @@ def organize_session(slug: str, n: int, llm: StructuredLLM, progress: Progress =
     state = sessions.load_state(slug, n)
     for i in range(state.organized_windows, len(ws)):
         progress(i / max(len(ws), 1), f"Organizing part {i + 1} of {len(ws)}")
-        result = _ask(llm, EXTRACT_SYSTEM, _context(slug, n) + "\nTranscript part:\n" + ws[i], EXTRACT_SCHEMA)
+        result = _ask(llm, EXTRACT_SYSTEM, _context(slug, n) + "\nTranscript part:\n" + ws[i], EXTRACT_SCHEMA,
+                      ExtractOut)
         if result is None:
             log.warning("Skipping transcript part %d of session %d: no valid response", i + 1, n)
+            state.skipped_windows.append(i)
         else:
-            for j, raw in enumerate(result.get("cards", [])):
-                if not raw.get("title", "").strip():
+            for j, item in enumerate(result.cards):
+                try:
+                    raw = ExtractCard.model_validate(item)
+                except ValidationError:
                     continue
                 card = _save_raw_card(slug, n, raw, n * 10000 + i * 100 + j, llm)
                 links = state.pending_links.setdefault(card.slug, [])
-                links += [t for t in raw.get("links", []) if t not in links]
-                if raw["kind"] == "place":
-                    near = next((content.slugify(t) for t in raw.get("links", [])), None)
-                    content.add_map_cell(slug, card.title, raw.get("map_icon", ""), card.slug, near_slug=near)
-            content.add_known_names(slug, result.get("new_names", []))
+                links += [t for t in raw.links if t not in links]
+                if raw.kind == "place":
+                    near = next((content.slugify(t) for t in raw.links), None)
+                    content.add_map_cell(slug, card.title, raw.map_icon, card.slug, near_slug=near)
+            content.add_known_names(slug, result.new_names)
         state.organized_windows = i + 1
         sessions.save_state(slug, n, state)
     _resolve_links(slug, n, state.pending_links)
@@ -298,29 +360,31 @@ def _apply_rename(slug: str, old: str, new: str) -> None:
 def apply_answers(slug: str, llm: StructuredLLM) -> int:
     """Fold newly answered questions into their cards. Returns how many cards changed."""
     changed = 0
-    for card in content.list_cards(slug):
-        fresh = [q for q in card.questions if q.answer and not q.appliedAt]
-        if card.origin != "pipeline" or not fresh:
+    for card_slug in [c.slug for c in content.list_cards(slug)]:
+        card = content.read_card(slug, card_slug)
+        fresh = [q for q in card.questions if q.answer and not q.appliedAt] if card else []
+        if not card or card.origin != "pipeline" or not fresh:
             continue
         qa = "\n".join(f"Q: {q.text}\nA: {q.answer}" for q in fresh)
         result = _ask(llm, APPLY_SYSTEM,
                       f"Card title: {card.title}\nSummary: {card.summary}\nBody: {_strip_link_line(card.body)}\n"
-                      f"Appearance: {card.imageNotes or ''}\n\nAnswers:\n{qa}", APPLY_SCHEMA)
+                      f"Appearance: {card.imageNotes or ''}\n\nAnswers:\n{qa}", APPLY_SCHEMA, ApplyOut)
         if result is None:
             continue
         stamp = content.now_iso()
         link_line = re.search(r"See also: .*$", card.body.strip(), flags=re.S)
-        body = _trim_words(result["body"]) + ("\n\n" + link_line.group(0) if link_line else "")
+        body = (_trim_words(result.body) or _strip_link_line(card.body)) + (
+            "\n\n" + link_line.group(0) if link_line else "")
         questions = [q.model_copy(update={"appliedAt": stamp}) if q in fresh else q for q in card.questions]
         content.update_card(slug, card.model_copy(update={
-            "title": result["title"][:100] or card.title,
-            "summary": result["summary"][:200] or card.summary,
+            "title": result.title[:100] or card.title,
+            "summary": result.summary[:200] or card.summary,
             "body": body,
-            "imageNotes": result["appearance"] or card.imageNotes,
+            "imageNotes": result.appearance or card.imageNotes,
             "questions": questions,
         }))
-        for r in result.get("renames", []):
-            if r["from"].strip() and r["to"].strip() and r["from"] != r["to"]:
-                _apply_rename(slug, r["from"].strip(), r["to"].strip())
+        for r in result.renames:
+            if r.old.strip() and r.new.strip() and r.old != r.new:
+                _apply_rename(slug, r.old.strip(), r.new.strip())
         changed += 1
     return changed

@@ -76,7 +76,12 @@ def run_post_session(slug: str, n: int, deps: Deps) -> None:
             skipped.append("images")
 
         meta.status, meta.progress = "done", 1.0
-        meta.message = "Done" + (f" (skipped: {', '.join(skipped)}: no model configured)" if skipped else "")
+        notes = []
+        if skipped:
+            notes.append(f"skipped {', '.join(skipped)}: no model configured")
+        if lost := len(sessions.load_state(slug, n).skipped_windows):
+            notes.append(f"{lost} part{'s' if lost > 1 else ''} of the transcript couldn't be organized; try Re-process")
+        meta.message = "Done" + (f" ({'; '.join(notes)})" if notes else "")
     except Exception as exc:
         log.error("Session %s/%d failed: %s", slug, n, traceback.format_exc())
         meta.status, meta.error = "error", str(exc)

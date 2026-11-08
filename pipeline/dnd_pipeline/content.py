@@ -138,7 +138,14 @@ def update_card(slug: str, card: Card) -> Card:
         raise ValueError(f"refusing to edit hand-written article {card.slug}")
     if existing:
         answered = {q.id: q for q in existing.questions if q.answer}
-        merged = [q if q.answer else answered.get(q.id, q) for q in card.questions]
+
+        def pick(q: Question) -> Question:
+            disk = answered.get(q.id)
+            if disk and (not q.answer or disk.answer != q.answer or disk.answeredAt != q.answeredAt):
+                return disk
+            return q
+
+        merged = [pick(q) for q in card.questions]
         ids = {q.id for q in merged}
         merged += [q for q in existing.questions if q.id not in ids and q.answer]
         card = card.model_copy(update={"questions": merged})

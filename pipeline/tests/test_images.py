@@ -40,3 +40,18 @@ def test_redraw_records_change_and_replaces_image(repo):
     card = content.read_card("camp", "gravel")
     assert "eyepatch" in card.imageNotes and card.imageStatus == "generated"
     assert "eyepatch" in llm.calls[0][1]
+
+
+def test_render_keeps_edits_made_while_drawing(repo):
+    setup(repo)
+
+    class EditingImages(FakeImages):
+        def generate(self, prompt, out_path, seed=0):
+            c = content.read_card("camp", "gravel")
+            content.update_card("camp", c.model_copy(update={"title": "Gravelle the Smith"}))
+            super().generate(prompt, out_path, seed)
+
+    llm = FakeLLM({"detail": [{"enough_detail": False}, {"enough_detail": True, "prompt": "dwarf"}]})
+    images.process_pending("camp", EditingImages(), llm)
+    card = content.read_card("camp", "gravel")
+    assert card.title == "Gravelle the Smith" and card.imageStatus == "generated"

@@ -8,10 +8,13 @@ import type { SessionMeta } from "@/lib/content/schema";
 
 interface WorkerStatus {
   recording: { campaign: string; session: number } | null;
+  recorder: { last_chunk_age: number; error: string | null } | null;
   job: { kind: string; campaign: string; session: number | null } | null;
   queued: number;
   last_error: string | null;
 }
+
+const STALL_SECONDS = 75;
 
 const ACTIVE = new Set(["recording", "transcribing", "organizing", "imaging"]);
 
@@ -63,13 +66,15 @@ export function SessionControls({
   }
 
   async function deleteAudio(n: number) {
-    if (!confirm(`Delete the recording for session ${n}? The notes stay; it just can't be re-processed.`)) return;
+    if (!confirm(`Delete the recording for session ${n}? The notes and transcript stay.`)) return;
     await fetch(`/api/campaigns/${campaignSlug}/sessions/${n}/audio`, { method: "DELETE" });
     refresh();
   }
 
   const recordingHere = worker?.recording?.campaign === campaignSlug;
   const recordingElsewhere = worker?.recording && !recordingHere;
+  const recorder = recordingHere ? worker?.recorder : null;
+  const stalled = recorder && (recorder.error || recorder.last_chunk_age > STALL_SECONDS);
 
   return (
     <div className="space-y-6">
@@ -80,6 +85,13 @@ export function SessionControls({
       )}
       {worker?.last_error && (
         <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">{worker.last_error}</p>
+      )}
+
+      {stalled && (
+        <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          {recorder?.error ?? "No audio has been saved for over a minute."} Press Stop, check the microphone, and
+          Start again.
+        </p>
       )}
 
       <div className="flex items-center gap-3">
@@ -136,12 +148,10 @@ export function SessionControls({
                 )}
                 {!ACTIVE.has(s.status) && (
                   <div className="flex gap-1">
-                    {s.has_audio && (
-                      <Button variant="ghost" size="sm" disabled={!worker} onClick={() => act("process", s.number)}>
-                        <RotateCw className="size-3.5" aria-hidden />
-                        {s.status === "error" ? "Retry" : "Re-process"}
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="sm" disabled={!worker} onClick={() => act("process", s.number)}>
+                      <RotateCw className="size-3.5" aria-hidden />
+                      {s.status === "error" ? "Retry" : "Re-process"}
+                    </Button>
                     {s.has_audio && (
                       <Button variant="ghost" size="sm" onClick={() => deleteAudio(s.number)}>
                         <Trash2 className="size-3.5" aria-hidden />

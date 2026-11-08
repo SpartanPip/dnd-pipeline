@@ -64,3 +64,9 @@ def test_error_is_recorded_on_session(repo):
     pipeline.run_post_session("camp", n, Deps(transcriber=Boom()))
     meta = sessions.load_meta("camp", n)
     assert meta.status == "error" and "mic exploded" in meta.error
+
+
+def test_skipped_parts_reported_in_message(repo):
+    n = setup(repo)
+    pipeline.run_post_session("camp", n, Deps(transcriber=FakeTranscriber(), llm=FakeLLM({"extract": ["x", "x"]})))
+    assert "1 part" in sessions.load_meta("camp", n).message

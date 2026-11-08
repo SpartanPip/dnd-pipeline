@@ -125,3 +125,36 @@ def test_mic_that_never_opens_fails_fast_with_hint(repo):
     assert r.status_code == 503 and "Microphone" in r.json()["detail"]
     assert sessions.load_meta("camp", 1).status == "error"
     assert client.get("/status").json()["recording"] is None
+
+
+def test_late_opening_mic_is_stopped(repo):
+    import threading
+    import time
+
+    (repo / "content/campaigns/camp").mkdir(parents=True)
+    release = threading.Event()
+    made = []
+
+    class LateRecorder(FakeRecorder):
+        def start(self):
+            made.append(self)
+            release.wait(5)
+
+    worker = Worker(recorder_factory=LateRecorder, deps_factory=lambda: Deps(),
+                    post_session=lambda *a: None, mic_timeout=0.1)
+    TestClient(create_app(worker)).post("/sessions/start", json={"campaign": "camp"})
+    release.set()
+    for _ in range(50):
+        if made[0].stopped:
+            break
+        time.sleep(0.02)
+    assert made[0].stopped
+
+
+def test_status_reports_recorder_health(repo):
+    worker, client, _ = make(repo)
+    FakeRecorder.health = lambda self: {"last_chunk_age": 3.0, "error": None}
+    client.post("/sessions/start", json={"campaign": "camp"})
+    assert client.get("/status").json()["recorder"] == {"last_chunk_age": 3.0, "error": None}
+    client.post("/sessions/stop")
+    worker.wait_idle()

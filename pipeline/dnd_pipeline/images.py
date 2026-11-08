@@ -10,6 +10,8 @@ from typing import Protocol, get_args
 
 from . import content
 from .content import Card
+from pydantic import BaseModel
+
 from .organize import StructuredLLM, _ask
 from .paths import uploads_dir
 
@@ -28,6 +30,11 @@ simple sticker of it without guessing, and if so write a short image prompt (und
 subject. Be strict: a character needs at least two stated visual details (e.g. species/ancestry plus clothing,
 build, hair, or a notable feature); an event needs who or what is involved and what is happening; a place or item
 needs a physical description. Never add details that are not in the card or the related cards."""
+
+
+class DetailOut(BaseModel):
+    enough_detail: bool = False
+    prompt: str = ""
 
 
 class Generates(Protocol):
@@ -73,6 +80,7 @@ def _describe(slug: str, card: Card, all_cards: list[Card], change: str | None =
 def _render(slug: str, card: Card, prompt: str, gen: Generates) -> Card:
     filename = f"{card.slug}-{uuid.uuid4().hex[:8]}.png"
     gen.generate(f"{STYLE}. {prompt}", uploads_dir(slug) / filename, seed=zlib.crc32(card.slug.encode()))
+    card = content.read_card(slug, card.slug) or card
     return content.update_card(slug, card.model_copy(update={
         "image": f"/uploads/{slug}/{filename}", "imageStatus": "generated",
     }))
@@ -83,12 +91,15 @@ def process_pending(slug: str, gen: Generates, llm: StructuredLLM,
     all_cards = content.list_cards(slug)
     pending = [c for c in all_cards if c.origin == "pipeline" and c.imageStatus == "pending"]
     made = 0
-    for i, card in enumerate(pending):
+    for i, stale in enumerate(pending):
+        card = content.read_card(slug, stale.slug)
+        if not card or card.origin != "pipeline" or card.imageStatus != "pending":
+            continue
         progress(i / max(len(pending), 1), f"Checking image detail for {card.title}")
-        verdict = _ask(llm, DETAIL_SYSTEM, _describe(slug, card, all_cards), DETAIL_SCHEMA)
-        if verdict and verdict["enough_detail"] and verdict["prompt"].strip():
+        verdict = _ask(llm, DETAIL_SYSTEM, _describe(slug, card, all_cards), DETAIL_SCHEMA, DetailOut)
+        if verdict and verdict.enough_detail and verdict.prompt.strip():
             progress(i / max(len(pending), 1), f"Drawing {card.title}")
-            _render(slug, card, verdict["prompt"], gen)
+            _render(slug, card, verdict.prompt, gen)
             made += 1
     return made
 
@@ -99,6 +110,7 @@ def redraw(slug: str, card_slug: str, change: str, gen: Generates, llm: Structur
         raise ValueError(f"{card_slug} is not a pipeline card")
     notes = "; ".join(filter(None, [card.imageNotes, f"Change: {change.strip()}"]))
     card = content.update_card(slug, card.model_copy(update={"imageNotes": notes}))
-    verdict = _ask(llm, DETAIL_SYSTEM, _describe(slug, card, content.list_cards(slug), change), DETAIL_SCHEMA)
-    prompt = (verdict or {}).get("prompt", "").strip() or f"{card.title}. {notes}"
+    verdict = _ask(llm, DETAIL_SYSTEM, _describe(slug, card, content.list_cards(slug), change), DETAIL_SCHEMA,
+                   DetailOut)
+    prompt = (verdict.prompt.strip() if verdict else "") or f"{card.title}. {notes}"
     return _render(slug, card, prompt, gen)

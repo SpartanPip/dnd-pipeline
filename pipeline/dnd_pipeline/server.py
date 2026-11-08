@@ -79,6 +79,11 @@ class Worker:
         hint = ("Allow microphone access for your terminal app in System Settings > Privacy & Security > "
                 "Microphone, then restart ./start.sh.")
         if t.is_alive():
+            def stop_when_open():
+                t.join()
+                recorder.stop()
+
+            threading.Thread(target=stop_when_open, daemon=True).start()
             return f"Microphone didn't open. {hint}"
         if failure:
             return f"Microphone error: {failure[0]}. {hint}"
@@ -122,7 +127,9 @@ class Worker:
         if self.current:
             job = {"kind": self.current.kind, "campaign": self.current.campaign, "session": self.current.session,
                    "card": self.current.card}
-        return {"recording": rec, "job": job, "queued": self.jobs.qsize(), "last_error": self.last_error}
+        health = self.recorder.health() if self.recorder and hasattr(self.recorder, "health") else None
+        return {"recording": rec, "recorder": health, "job": job, "queued": self.jobs.qsize(),
+                "last_error": self.last_error}
 
     def _run_live(self) -> None:
         while True:

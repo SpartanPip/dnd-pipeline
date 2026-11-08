@@ -1,6 +1,7 @@
 """Mic recorder that writes 30-second WAV chunks and reports each finished chunk."""
 
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,6 +16,8 @@ class Recorder:
         self._frames = 0
         self._file = None
         self._stream = None
+        self._last_chunk_at = time.monotonic()
+        self._error: str | None = None
 
     def _open_next(self) -> None:
         import soundfile as sf
@@ -35,17 +38,29 @@ class Recorder:
         final = part.with_suffix("")
         part.rename(final)
         self._file = None
+        self._last_chunk_at = time.monotonic()
         threading.Thread(target=self.on_chunk, args=(final,), daemon=True).start()
 
-    def _callback(self, indata, frames, time, status) -> None:
+    def _callback(self, indata, frames, time_info, status) -> None:
         with self._lock:
             if self._file is None:
                 return
-            self._file.write(indata.copy())
-            self._frames += frames
-            if self._frames >= self.chunk_seconds * SAMPLE_RATE:
-                self._finish_current()
-                self._open_next()
+            try:
+                self._file.write(indata.copy())
+                self._frames += frames
+                if self._frames >= self.chunk_seconds * SAMPLE_RATE:
+                    self._finish_current()
+                    self._open_next()
+            except Exception as exc:
+                self._error = f"Recording stopped: {exc}"
+                self._file = None
+
+    def health(self) -> dict:
+        """Seconds since the last finished chunk, and any error; the Session page warns when audio stalls."""
+        error = self._error
+        if error is None and self._stream is not None and not self._stream.active:
+            error = "The microphone stream stopped"
+        return {"last_chunk_age": round(time.monotonic() - self._last_chunk_at, 1), "error": error}
 
     def start(self) -> None:
         import sounddevice as sd

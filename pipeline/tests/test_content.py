@@ -118,3 +118,17 @@ def test_update_keeps_applied_marker_set_by_pipeline(repo):
     applied = answered.model_copy(update={"appliedAt": "2026-11-07T01:00:00Z"})
     content.update_card("camp", card(questions=[applied]))
     assert content.read_card("camp", "gravel-at-the-forge").questions[0].appliedAt == "2026-11-07T01:00:00Z"
+
+
+def test_changed_answer_on_disk_beats_stale_pipeline_copy(repo):
+    make_campaign(repo)
+    old = Question(id="q1", text="Is it Gravel?", answer="Yes", answeredAt="2026-11-07T00:00:00Z")
+    content.create_card("camp", card(questions=[old]))
+    on_disk = content.read_card("camp", "gravel-at-the-forge")
+    on_disk.questions[0] = Question(id="q1", text="Is it Gravel?", answer="No, Gravelle",
+                                    answeredAt="2026-11-07T02:00:00Z")
+    content._write_raw("camp", on_disk)
+    stale = old.model_copy(update={"appliedAt": "2026-11-07T03:00:00Z"})
+    content.update_card("camp", card(questions=[stale]))
+    q = content.read_card("camp", "gravel-at-the-forge").questions[0]
+    assert q.answer == "No, Gravelle" and q.appliedAt is None

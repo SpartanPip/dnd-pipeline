@@ -30,6 +30,7 @@ class SessionMeta(BaseModel):
 class SessionState(BaseModel):
     transcribed: list[str] = []
     organized_windows: int = 0
+    skipped_windows: list[int] = []
     pending_links: dict[str, list[str]] = {}
     answers_applied: bool = False
     images_done: bool = False

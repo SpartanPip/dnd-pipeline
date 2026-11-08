@@ -4,7 +4,11 @@ import httpx
 
 
 class LLMError(Exception):
-    pass
+    """The model answered, but not with usable output."""
+
+
+class LLMUnavailable(Exception):
+    """Ollama couldn't be reached or timed out; the job should fail and be resumed later."""
 
 
 class LLM:
@@ -28,5 +32,7 @@ class LLM:
             )
             resp.raise_for_status()
             return json.loads(resp.json()["message"]["content"])
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            raise LLMUnavailable(f"Ollama at {self.host} isn't reachable ({exc}). Is ./start.sh running?") from exc
         except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
             raise LLMError(str(exc)) from exc
