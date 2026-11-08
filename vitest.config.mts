@@ -10,6 +10,7 @@ export default defineConfig({
     // "jsdom" locally if you add component-level tests later.
     environment: "node",
     globals: true,
+    exclude: ["**/node_modules/**", "pipeline/**"],
   },
   resolve: {
     alias: {
