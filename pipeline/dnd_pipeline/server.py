@@ -32,8 +32,9 @@ class Job:
 
 class Worker:
     def __init__(self, recorder_factory: Callable, deps_factory: Callable[[], Deps],
-                 post_session: Callable[[str, int, Deps], None] = run_post_session):
+                 post_session: Callable[[str, int, Deps], None] = run_post_session, mic_timeout: float = 10):
         self.recorder_factory, self.deps_factory, self.post_session = recorder_factory, deps_factory, post_session
+        self.mic_timeout = mic_timeout
         self.recording: tuple[str, int] | None = None
         self.recorder = None
         self.current: Job | None = None
@@ -52,11 +53,36 @@ class Worker:
                 raise HTTPException(404, "Unknown campaign")
             meta = sessions.new_session(campaign)
             n = meta.number
-            self.recorder = self.recorder_factory(sessions.audio_dir(campaign, n),
-                                                  lambda path: self._live.put((campaign, n)))
-            self.recorder.start()
-            self.recording = (campaign, n)
+            recorder = self.recorder_factory(sessions.audio_dir(campaign, n),
+                                             lambda path: self._live.put((campaign, n)))
+            error = self._start_recorder(recorder)
+            if error:
+                meta.status, meta.error = "error", error
+                sessions.save_meta(campaign, meta)
+                raise HTTPException(503, error)
+            self.recorder, self.recording = recorder, (campaign, n)
             return meta
+
+    def _start_recorder(self, recorder) -> str | None:
+        """Open the mic off-thread so a pending macOS permission prompt can't hang the worker."""
+        failure: list[BaseException] = []
+
+        def run():
+            try:
+                recorder.start()
+            except BaseException as exc:
+                failure.append(exc)
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(self.mic_timeout)
+        hint = ("Allow microphone access for your terminal app in System Settings > Privacy & Security > "
+                "Microphone, then restart ./start.sh.")
+        if t.is_alive():
+            return f"Microphone didn't open. {hint}"
+        if failure:
+            return f"Microphone error: {failure[0]}. {hint}"
+        return None
 
     def stop(self) -> sessions.SessionMeta:
         with self._lock:

@@ -105,3 +105,23 @@ def test_reprocess_done_session_starts_organizing_over(repo):
     st = sessions.load_state("camp", 1)
     assert st.organized_windows == 0 and not st.images_done and not st.answers_applied
     assert st.transcribed == ["chunk-0001.wav"]
+
+
+def test_mic_that_never_opens_fails_fast_with_hint(repo):
+    import threading
+
+    (repo / "content/campaigns/camp").mkdir(parents=True)
+    release = threading.Event()
+
+    class HangingRecorder(FakeRecorder):
+        def start(self):
+            release.wait(5)
+
+    worker = Worker(recorder_factory=HangingRecorder, deps_factory=lambda: Deps(),
+                    post_session=lambda *a: None, mic_timeout=0.2)
+    client = TestClient(create_app(worker))
+    r = client.post("/sessions/start", json={"campaign": "camp"})
+    release.set()
+    assert r.status_code == 503 and "Microphone" in r.json()["detail"]
+    assert sessions.load_meta("camp", 1).status == "error"
+    assert client.get("/status").json()["recording"] is None

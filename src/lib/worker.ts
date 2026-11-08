@@ -1,8 +1,12 @@
 /** Talks to the local Python worker (pipeline/dnd_pipeline/server.py). Returns null when it isn't running. */
-export async function workerFetch(path: string, init?: RequestInit): Promise<Response | null> {
+export async function workerFetch(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = 5000,
+): Promise<Response | null> {
   const base = process.env.DND_WORKER_URL ?? "http://127.0.0.1:8765";
   try {
-    return await fetch(`${base}${path}`, { ...init, cache: "no-store", signal: AbortSignal.timeout(5000) });
+    return await fetch(`${base}${path}`, { ...init, cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
   } catch {
     return null;
   }

@@ -36,7 +36,11 @@ export async function POST(request: Request, { params }: Params) {
   const json = { "Content-Type": "application/json" };
   const res =
     action === "start"
-      ? await workerFetch("/sessions/start", { method: "POST", headers: json, body: JSON.stringify({ campaign: slug }) })
+      ? await workerFetch(
+          "/sessions/start",
+          { method: "POST", headers: json, body: JSON.stringify({ campaign: slug }) },
+          20000,
+        )
       : action === "stop"
         ? await workerFetch("/sessions/stop", { method: "POST" })
         : action === "process"
