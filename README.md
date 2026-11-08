@@ -1,64 +1,91 @@
-# DnD Lore
+# dnd-pipeline
 
-A local, self-hosted lore atlas for your D&D campaigns. Runs entirely on
-`localhost` — no external services, no database. Every campaign gets:
+Session notes for in-person D&D, made on your Mac. Put a laptop on the table,
+press **Start**, and play. When you press **Stop**, it keeps working locally for
+up to a couple of hours and turns the session into short, linked cards (events,
+characters, places, items, spells…) with cute sticker images, browsable on a
+local website.
 
-- **Map** — a grid map centered on `(0, 0)`, with hoverable/clickable
-  fantasy icons that jump into a curated search.
-- **Articles** — short, cross-linked lore entries (title, tags, one-sentence
-  summary, half-page description, optional image).
-- **Search** — fuzzy, tag-aware search with live suggestions.
+Nothing leaves your machine: recording, transcription, organizing, and image
+generation all run locally.
 
-All three views are reachable from the header on every campaign page. The
-home page (`/`) is a grid of campaigns to pick from.
+Built on [dnd-lore](https://github.com/SpartanPip/dnd-lore): same campaigns,
+map, articles, tags, and search, plus:
 
-## Getting started
+- **Session** page: Start/Stop recording, live processing progress, the
+  campaign's character names, and past sessions (re-process or delete a
+  recording).
+- **Timeline**: event cards in story order, grouped by session.
+- **Open questions** on cards ("Is the name 'Gravel' correct?"). Answer them on
+  the card; answers are applied the next time the pipeline runs (or press
+  **Apply answers now**).
+- **Image pending**: a card only gets an image once it has enough detail to draw
+  it right. Pending cards are rechecked after every session. Images are fixed
+  once drawn; use **Redraw** on a card to describe a change.
+
+## Requirements
+
+macOS with Apple Silicon (M1 or newer) and [Homebrew](https://brew.sh). Intel
+Macs can run the website, but not the local models.
+
+## Setup
 
 ```bash
-pnpm install
-pnpm dev
+./setup.sh
 ```
 
-Open <http://localhost:3000>. A seeded example campaign, **The Sunken
-Isles**, is included under `content/campaigns/sunken-isles/` so you can see
-everything working immediately.
+This installs dependencies (asking before installing anything with Homebrew),
+then asks whether it may check your Mac's chip, memory, and free disk to
+recommend models. You can accept each recommendation, type a different model,
+or type `none` to skip a step. Skip the check entirely to pick models yourself.
+Choices are saved to `pipeline.config.json`; run `./setup.sh` again to change
+them.
 
-## Adding your own lore
+| Memory | Transcription | Organizing (Ollama) | Images (mflux) |
+| --- | --- | --- | --- |
+| 8–15 GB | `whisper-small` | `gemma4:e2b` (rougher notes) | not available |
+| 16–23 GB | `whisper-large-v3-turbo` | `gemma4:e4b` | Z-Image Turbo, 4-bit |
+| 24–47 GB | `whisper-large-v3-turbo` | `gemma4:12b` | Z-Image Turbo, 8-bit |
+| 48 GB+ | `whisper-large-v3-turbo` | `gemma4:26b` | Z-Image Turbo, 8-bit |
 
-- Use the UI: "New campaign" on the home page, "New article" on a
-  campaign's Articles page, and the hover-to-edit image button anywhere
-  you see an image.
-- Or ramble about your campaign to your AI coding assistant — see the
-  `campaign-ramble` skill in `.cursor/skills/campaign-ramble/SKILL.md`,
-  which turns a free-form recap into articles and map updates for you.
+If a step has no model, the rest of the pipeline still runs and the site says
+what was skipped.
 
-## Project docs
+## Game night
 
-- [`STYLE_GUIDE.md`](./STYLE_GUIDE.md) — front-end design/styling
-  conventions.
-- [`AGENTS.md`](./AGENTS.md) — architecture, content schema, and
-  conventions for AI coding agents working in this repo (`CLAUDE.md`
-  re-exports the same file).
+```bash
+./start.sh
+```
 
-## Scripts
+Open <http://localhost:3000>, pick a campaign, go to **Session**.
 
-| Command              | What it does                                   |
-| --------------------- | ----------------------------------------------- |
-| `pnpm dev`            | Run the app locally                             |
-| `pnpm build`          | Production build                                |
-| `pnpm start`          | Run the production build                        |
-| `pnpm lint`           | ESLint                                          |
-| `pnpm typecheck`      | `tsc --noEmit`                                  |
-| `pnpm test`           | Run the Vitest suite                            |
-| `pnpm lint:content`   | Warn on oversized articles / unknown map icons  |
+1. Type the character names you expect tonight into the listening list (it
+   helps transcription spell them right).
+2. Press **Start**. The first time, macOS asks to let your terminal app use the
+   microphone. Allow it.
+3. Press **Stop** when you're done. Leave the laptop running; progress shows on
+   the Session page and cards appear as they're written.
 
-## Tech stack
+If the laptop sleeps or the worker stops mid-processing, run `./start.sh`
+again and it picks up where it left off.
 
-Next.js (App Router) + React + TypeScript, Tailwind CSS + shadcn/ui,
-MiniSearch, `react-icons/gi` for map icons, `react-dropzone` for image
-uploads, `react-zoom-pan-pinch` for the map, Zod for content validation.
-Content is plain Markdown/JSON under `content/campaigns/`, not a database —
-see `AGENTS.md` for the full schema.
+## Privacy
 
-Map icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0);
-see the credit in the site footer.
+Real campaigns (`content/campaigns/*` except the `sunken-isles` example),
+generated images (`public/uploads/`), recordings, and `pipeline.config.json`
+are git-ignored, so pushing this repo never uploads your notes.
+
+## Development
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Website only |
+| `pnpm test` / `pnpm typecheck` / `pnpm lint` | Website checks |
+| `pnpm lint:content` | Warn on oversized articles / unknown map icons |
+| `cd pipeline && uv run pytest` | Pipeline tests (no models needed) |
+| `cd pipeline && uv run dnd-worker` | Worker only (`127.0.0.1:8765`) |
+
+See [`AGENTS.md`](./AGENTS.md) for architecture and the content model, and
+[`STYLE_GUIDE.md`](./STYLE_GUIDE.md) for UI conventions.
+
+Map icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0).

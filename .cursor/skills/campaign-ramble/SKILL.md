@@ -86,3 +86,10 @@ Every file must validate against the Zod schemas in
 ## Reference
 
 - [icons-reference.md](icons-reference.md) — available map icon names.
+
+## Pipeline cards
+
+Articles with `origin: pipeline` were written by the session pipeline
+(`pipeline/`). Leave their card fields (`kind`, `sessions`, `order`,
+`imageStatus`, `imageNotes`, `questions`) intact when you extend them, and keep
+hand-written articles `origin: manual` (the default).
