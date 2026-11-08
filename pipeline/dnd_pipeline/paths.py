@@ -30,3 +30,8 @@ def uploads_dir(slug: str) -> Path:
 
 def config_path() -> Path:
     return repo_root() / "pipeline.config.json"
+
+
+def site_root() -> Path:
+    """The checked-out repo holding the site's source, regardless of DND_REPO_ROOT."""
+    return _DEFAULT_ROOT
