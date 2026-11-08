@@ -12,6 +12,7 @@ class Config(BaseModel):
     image_quantize: int = 8
     tier: str = "unknown"
     ollama_host: str = "http://127.0.0.1:11434"
+    language: str = "en"
 
 
 def load_config() -> Config:
