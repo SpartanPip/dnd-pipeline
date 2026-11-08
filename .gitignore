@@ -52,3 +52,4 @@ next-env.d.ts
 /pipeline/.venv/
 __pycache__/
 .pytest_cache/
+/logs/

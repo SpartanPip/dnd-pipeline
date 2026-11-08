@@ -43,10 +43,10 @@ them.
 
 | Memory | Transcription | Organizing (Ollama) | Images (mflux) |
 | --- | --- | --- | --- |
-| 8–15 GB | `whisper-small` | `gemma4:e2b` (rougher notes) | not available |
-| 16–23 GB | `whisper-large-v3-turbo` | `gemma4:e4b` | Z-Image Turbo, 4-bit |
-| 24–47 GB | `whisper-large-v3-turbo` | `gemma4:12b` | Z-Image Turbo, 8-bit |
-| 48 GB+ | `whisper-large-v3-turbo` | `gemma4:26b` | Z-Image Turbo, 8-bit |
+| 8–15 GB | `whisper-small` | `gemma4:e2b-it-q4_K_M` (rougher notes) | not available |
+| 16–23 GB | `whisper-large-v3-turbo` | `gemma4:e4b-it-q4_K_M` | Z-Image Turbo, 4-bit |
+| 24–47 GB | `whisper-large-v3-turbo` | `gemma4:12b-it-q4_K_M` | Z-Image Turbo, 8-bit |
+| 48 GB+ | `whisper-large-v3-turbo` | `gemma4:26b-a4b-it-q4_K_M` | Z-Image Turbo, 8-bit |
 
 If a step has no model, the rest of the pipeline still runs and the site says
 what was skipped.
@@ -68,6 +68,9 @@ Open <http://localhost:3000>, pick a campaign, go to **Session**.
 
 If the laptop sleeps or the worker stops mid-processing, run `./start.sh`
 again and it picks up where it left off.
+
+If something goes wrong, check `logs/` (`worker.log`, `site.log`,
+`ollama.log`). Each `./start.sh` overwrites them.
 
 ## Privacy
 

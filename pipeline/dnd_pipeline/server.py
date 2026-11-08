@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from . import content, images, organize, sessions
 from .config import load_config
-from .paths import campaign_dir, content_root
+from .paths import campaign_dir, content_root, repo_root
 from .pipeline import CHUNK_SECONDS, Deps, build_deps, listening_names, run_post_session
 
 log = logging.getLogger(__name__)
@@ -145,6 +145,7 @@ class Worker:
         while True:
             job = self.jobs.get()
             self.current = job
+            log.info("Job started: %s", job)
             try:
                 deps = self.deps_factory()
                 if job.kind == "process":
@@ -156,6 +157,7 @@ class Worker:
                         raise RuntimeError("No image model configured. Run ./setup.sh to pick one.")
                     images.redraw(job.campaign, job.card, job.change, deps.images, deps.llm)
                 self.last_error = None
+                log.info("Job finished: %s", job)
             except Exception as exc:
                 log.exception("Job %s failed", job)
                 self.last_error = f"{job.kind}: {exc}"
@@ -249,7 +251,12 @@ def main() -> None:
 
     from .recorder import Recorder
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    log_file = repo_root() / "logs" / "worker.log"
+    log_file.parent.mkdir(exist_ok=True)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode="w")])
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    log.info("Worker starting; config: %s", load_config())
     worker = Worker(recorder_factory=Recorder, deps_factory=_cached_deps())
     worker.recover()
-    uvicorn.run(create_app(worker), host=HOST, port=PORT, log_level="warning")
+    uvicorn.run(create_app(worker), host=HOST, port=PORT, log_level="warning", log_config=None)

@@ -83,6 +83,8 @@ content/campaigns/<slug>/
   `pipeline.py` runs post-session steps (transcribe → organize → apply
   answers → images) with progress checkpointed in `state.json`, `tiers.py`
   holds the per-Mac model recommendations used by `setup.sh`.
+- `logs/` — `worker.log`, `site.log`, `ollama.log`, overwritten by each
+  `./start.sh`. Check `worker.log` first when a session fails or skips parts.
 
 ## Commands
 

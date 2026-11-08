@@ -10,11 +10,11 @@ def mac(memory_gb, apple_silicon=True, disk=200):
 
 
 @pytest.mark.parametrize("mem,tier,llm,images", [
-    (8, "basic", "gemma4:e2b", None),
-    (16, "standard", "gemma4:e4b", "z-image-turbo"),
-    (24, "plus", "gemma4:12b", "z-image-turbo"),
-    (48, "max", "gemma4:26b", "z-image-turbo"),
-    (128, "max", "gemma4:26b", "z-image-turbo"),
+    (8, "basic", "gemma4:e2b-it-q4_K_M", None),
+    (16, "standard", "gemma4:e4b-it-q4_K_M", "z-image-turbo"),
+    (24, "plus", "gemma4:12b-it-q4_K_M", "z-image-turbo"),
+    (48, "max", "gemma4:26b-a4b-it-q4_K_M", "z-image-turbo"),
+    (128, "max", "gemma4:26b-a4b-it-q4_K_M", "z-image-turbo"),
 ])
 def test_tier_boundaries(mem, tier, llm, images):
     rec = recommend(mac(mem))

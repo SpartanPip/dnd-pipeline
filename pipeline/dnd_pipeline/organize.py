@@ -1,5 +1,6 @@
 """Turn a session transcript into short, linked snapshot cards, and fold user answers back in."""
 
+import json
 import logging
 import re
 import uuid
@@ -214,10 +215,14 @@ def _context(slug: str, n: int) -> str:
 def _ask(llm: StructuredLLM, system: str, user: str, schema: dict, model: type[M]) -> M | None:
     """Two attempts at a usable answer. LLMUnavailable propagates so the job fails and can resume."""
     for attempt in (1, 2):
+        raw = None
         try:
-            return model.model_validate(llm.json(system, user, schema))
+            raw = llm.json(system, user, schema)
+            return model.model_validate(raw)
         except (LLMError, ValidationError) as exc:
             log.warning("LLM %s call failed (attempt %d): %s", schema["title"], attempt, exc)
+            if raw is not None:
+                log.warning("LLM %s output was: %.2000s", schema["title"], json.dumps(raw))
     return None
 
 
@@ -304,14 +309,19 @@ def organize_session(slug: str, n: int, llm: StructuredLLM, progress: Progress =
                      max_chars: int = 12000) -> None:
     ws = windows(sessions.read_transcript(slug, n), max_chars)
     state = sessions.load_state(slug, n)
-    for i in range(state.organized_windows, len(ws)):
+    for i in [*state.skipped_windows, *range(state.organized_windows, len(ws))]:
         progress(i / max(len(ws), 1), f"Organizing part {i + 1} of {len(ws)}")
         result = _ask(llm, EXTRACT_SYSTEM, _context(slug, n) + "\nTranscript part:\n" + ws[i], EXTRACT_SCHEMA,
                       ExtractOut)
         if result is None:
             log.warning("Skipping transcript part %d of session %d: no valid response", i + 1, n)
-            state.skipped_windows.append(i)
+            if i not in state.skipped_windows:
+                state.skipped_windows.append(i)
         else:
+            if i in state.skipped_windows:
+                state.skipped_windows.remove(i)
+            if result.cards:
+                state.images_done = False
             for j, item in enumerate(result.cards):
                 try:
                     raw = ExtractCard.model_validate(item)
@@ -324,7 +334,7 @@ def organize_session(slug: str, n: int, llm: StructuredLLM, progress: Progress =
                     near = next((content.slugify(t) for t in raw.links), None)
                     content.add_map_cell(slug, card.title, raw.map_icon, card.slug, near_slug=near)
             content.add_known_names(slug, result.new_names)
-        state.organized_windows = i + 1
+        state.organized_windows = max(state.organized_windows, i + 1)
         sessions.save_state(slug, n, state)
     _resolve_links(slug, n, state.pending_links)
     progress(1.0, "Organized")

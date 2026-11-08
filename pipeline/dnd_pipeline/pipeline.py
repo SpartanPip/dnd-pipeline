@@ -42,6 +42,7 @@ def run_post_session(slug: str, n: int, deps: Deps) -> None:
 
     def update(status: str, start: float, end: float):
         def cb(fraction: float, message: str) -> None:
+            log.info("Session %s/%d %s: %s", slug, n, status, message)
             meta.status, meta.message = status, message
             meta.progress = round(start + (end - start) * fraction, 3)
             sessions.save_meta(slug, meta)
@@ -82,6 +83,7 @@ def run_post_session(slug: str, n: int, deps: Deps) -> None:
         if lost := len(sessions.load_state(slug, n).skipped_windows):
             notes.append(f"{lost} part{'s' if lost > 1 else ''} of the transcript couldn't be organized; try Re-process")
         meta.message = "Done" + (f" ({'; '.join(notes)})" if notes else "")
+        log.info("Session %s/%d %s", slug, n, meta.message)
     except Exception as exc:
         log.error("Session %s/%d failed: %s", slug, n, traceback.format_exc())
         meta.status, meta.error = "error", str(exc)

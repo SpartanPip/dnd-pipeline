@@ -157,6 +157,20 @@ def test_skipped_windows_are_recorded(repo):
     assert sessions.load_state("camp", n).skipped_windows == [0]
 
 
+def test_reprocess_retries_skipped_windows_and_redoes_images(repo):
+    n = setup_session(repo, ["a"])
+    organize.organize_session("camp", n, FakeLLM({"extract": ["bad", "bad"]}))
+    state = sessions.load_state("camp", n)
+    state.images_done = True
+    sessions.save_state("camp", n, state)
+
+    organize.organize_session("camp", n, FakeLLM({"extract": [{"cards": [card_out("Mira")], "new_names": []}]}))
+    state = sessions.load_state("camp", n)
+    assert state.skipped_windows == [] and state.organized_windows == 1
+    assert not state.images_done
+    assert content.read_card("camp", "mira")
+
+
 def test_apply_answers_rereads_cards_renamed_earlier_in_the_loop(repo):
     setup_session(repo, ["x"])
     content.write_names("camp", content.Names(known=[{"name": "Gravel"}]))

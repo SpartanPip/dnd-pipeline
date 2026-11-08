@@ -30,25 +30,26 @@ def tier_for(hw: HardwareInfo) -> str:
     return "max"
 
 
+# Pinned GGUF builds: bare gemma4 tags pull MLX builds on Apple Silicon, which reject Ollama's `format`.
 _TABLE = {
     "basic": (
         ModelChoice("transcription", WHISPER_SMALL),
-        ModelChoice("organizing", "gemma4:e2b", "small model: expect rougher notes"),
+        ModelChoice("organizing", "gemma4:e2b-it-q4_K_M", "small model: expect rougher notes"),
         ModelChoice("images", None, "not enough memory to generate images locally"),
     ),
     "standard": (
         ModelChoice("transcription", WHISPER_TURBO),
-        ModelChoice("organizing", "gemma4:e4b"),
+        ModelChoice("organizing", "gemma4:e4b-it-q4_K_M"),
         ModelChoice("images", IMAGE_MODEL, quantize=4),
     ),
     "plus": (
         ModelChoice("transcription", WHISPER_TURBO),
-        ModelChoice("organizing", "gemma4:12b"),
+        ModelChoice("organizing", "gemma4:12b-it-q4_K_M"),
         ModelChoice("images", IMAGE_MODEL, quantize=8),
     ),
     "max": (
         ModelChoice("transcription", WHISPER_TURBO),
-        ModelChoice("organizing", "gemma4:26b"),
+        ModelChoice("organizing", "gemma4:26b-a4b-it-q4_K_M"),
         ModelChoice("images", IMAGE_MODEL, quantize=8),
     ),
 }

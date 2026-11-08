@@ -1,6 +1,7 @@
 """Per-session files: content/campaigns/<slug>/sessions/<n>/{session.json,state.json,audio/,transcript.jsonl}."""
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Literal, Protocol
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from .content import now_iso
 from .paths import sessions_dir
+
+log = logging.getLogger(__name__)
 
 Status = Literal["recording", "transcribing", "organizing", "imaging", "done", "error"]
 
@@ -118,6 +121,7 @@ def transcribe_pending(slug: str, n: int, transcriber: Transcribes, names: list[
             segments = transcriber.transcribe_chunk(path, names)
             offset = (chunk_index(path) - 1) * chunk_seconds
             append_transcript(slug, n, path.name, segments, offset)
+            log.info("Transcribed %s/%d %s: %d segments", slug, n, path.name, len(segments))
             state.transcribed.append(path.name)
             save_state(slug, n, state)
             done += 1
