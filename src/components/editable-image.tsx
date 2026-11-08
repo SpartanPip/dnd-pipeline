@@ -8,7 +8,7 @@
  * `onUploaded` to persist the returned path into the owning campaign or
  * article's data.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useDropzone } from "react-dropzone";
 import Image from "next/image";
 import { GiTreasureMap } from "react-icons/gi";
@@ -26,6 +26,8 @@ export interface EditableImageProps {
   className?: string;
   /** Tailwind aspect-ratio class, e.g. "aspect-video" or "aspect-square". */
   aspectClassName?: string;
+  /** Shown instead of the default icon when there's no image. */
+  placeholder?: ReactNode;
 }
 
 export function EditableImage({
@@ -37,6 +39,7 @@ export function EditableImage({
   onUploaded,
   className,
   aspectClassName = "aspect-video",
+  placeholder,
 }: EditableImageProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,9 +98,11 @@ export function EditableImage({
           className="object-cover"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-          <GiTreasureMap className="size-10" aria-hidden />
-        </div>
+        (placeholder ?? (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <GiTreasureMap className="size-10" aria-hidden />
+          </div>
+        ))
       )}
 
       <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">

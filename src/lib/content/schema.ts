@@ -119,6 +119,20 @@ export const namesSchema = z.object({
 });
 export type Names = z.infer<typeof namesSchema>;
 
+/** Mirrors SessionMeta in pipeline/dnd_pipeline/sessions.py (written by the worker). */
+export const sessionMetaSchema = z.object({
+  number: z.number().int(),
+  started_at: z.string(),
+  ended_at: z.string().nullish(),
+  status: z.enum(["recording", "transcribing", "organizing", "imaging", "done", "error"]),
+  step: z.string().default(""),
+  progress: z.number().default(0),
+  message: z.string().default(""),
+  error: z.string().nullish(),
+  has_audio: z.boolean().default(true),
+});
+export type SessionMeta = z.infer<typeof sessionMetaSchema>;
+
 /** Soft content-length guideline enforced by `pnpm lint:content`, not the build. */
 export const ARTICLE_WORD_LIMIT = 300;
 

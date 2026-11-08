@@ -9,6 +9,9 @@ import { ArticleEditorDialog } from "@/components/article-editor-dialog";
 import { ArticleDeleteButton } from "@/components/article-delete-button";
 import { ArticleCard } from "@/components/article-card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CardQuestions } from "@/components/card-questions";
+import { RedrawDialog } from "@/components/redraw-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +39,13 @@ export default async function ArticlePage({
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{article.title}</h1>
           <p className="text-muted-foreground">{article.summary}</p>
+          {(article.kind || article.sessions.length > 0) && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              {article.kind && <Badge variant="outline">{article.kind}</Badge>}
+              {article.sessions.length > 0 &&
+                `Seen in session${article.sessions.length > 1 ? "s" : ""} ${article.sessions.join(", ")}`}
+            </p>
+          )}
           {article.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {article.tags.map((tag) => (
@@ -45,6 +55,9 @@ export default async function ArticlePage({
           )}
         </div>
         <div className="flex shrink-0 gap-1">
+          {article.origin === "pipeline" && article.image && (
+            <RedrawDialog campaignSlug={slug} articleSlug={article.slug} />
+          )}
           <ArticleEditorDialog
             campaignSlug={slug}
             article={article}
@@ -65,6 +78,8 @@ export default async function ArticlePage({
         // untrusted users — see the note in `lib/content/markdown.ts`.
         dangerouslySetInnerHTML={{ __html: html }}
       />
+
+      <CardQuestions campaignSlug={slug} articleSlug={article.slug} questions={article.questions} />
 
       {related.length > 0 && (
         <div className="space-y-3 border-t pt-6">

@@ -10,6 +10,16 @@ import matter from "gray-matter";
 import { articlesDir, articlePath } from "./paths";
 import { articleSchema, type Article } from "./schema";
 
+const CARD_FIELDS = [
+  "kind",
+  "origin",
+  "sessions",
+  "order",
+  "imageStatus",
+  "imageNotes",
+  "questions",
+] as const;
+
 async function pathExists(target: string): Promise<boolean> {
   try {
     await fs.access(target);
@@ -21,7 +31,8 @@ async function pathExists(target: string): Promise<boolean> {
 
 function serialize(article: Article): string {
   const { body, ...frontmatter } = article;
-  return matter.stringify(body.trim() + "\n", frontmatter);
+  // js-yaml can't dump undefined, which optional fields (e.g. a cleared appliedAt) produce.
+  return matter.stringify(body.trim() + "\n", JSON.parse(JSON.stringify(frontmatter)));
 }
 
 /** List every article in a campaign, sorted alphabetically by title. */
@@ -84,4 +95,34 @@ export async function deleteArticle(
   articleSlug: string,
 ): Promise<void> {
   await fs.rm(articlePath(campaignSlug, articleSlug), { force: true });
+}
+
+/** Fill in card fields an update omitted, so editing a pipeline card keeps its questions and status. */
+export function preserveCardFields(
+  existing: Article,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...incoming };
+  for (const field of CARD_FIELDS) {
+    if (!(field in merged) && existing[field] !== undefined) merged[field] = existing[field];
+  }
+  return merged;
+}
+
+export async function answerQuestion(
+  campaignSlug: string,
+  articleSlug: string,
+  questionId: string,
+  answer: string,
+): Promise<Article> {
+  const article = await getArticle(campaignSlug, articleSlug);
+  if (!article.questions.some((q) => q.id === questionId)) {
+    throw new Error(`Unknown question ${questionId}`);
+  }
+  const questions = article.questions.map((q) =>
+    q.id === questionId
+      ? { ...q, answer: answer.trim(), answeredAt: new Date().toISOString(), appliedAt: undefined }
+      : q,
+  );
+  return saveArticle(campaignSlug, { ...article, questions });
 }

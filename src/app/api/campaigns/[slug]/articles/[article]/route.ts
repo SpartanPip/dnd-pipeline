@@ -4,6 +4,7 @@ import {
   articleExists,
   deleteArticle,
   getArticle,
+  preserveCardFields,
   saveArticle,
 } from "@/lib/content/articles";
 import { articleSchema } from "@/lib/content/schema";
@@ -23,7 +24,10 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   const { slug, article: articleSlug } = await params;
   const body = await request.json();
-  const parsed = articleSchema.safeParse(body);
+  const existing = (await articleExists(slug, articleSlug))
+    ? await getArticle(slug, articleSlug)
+    : null;
+  const parsed = articleSchema.safeParse(existing ? preserveCardFields(existing, body) : body);
   if (!parsed.success) {
     return NextResponse.json({ error: z.treeifyError(parsed.error) }, { status: 400 });
   }

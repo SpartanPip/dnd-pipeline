@@ -90,3 +90,18 @@ def test_path_traversal_campaign_rejected(repo):
     _, client, _ = make(repo)
     assert client.post("/sessions/start", json={"campaign": "../camp"}).status_code == 404
     assert client.post("/campaigns/..%2Fx/sessions/1/process").status_code == 404
+
+
+def test_reprocess_done_session_starts_organizing_over(repo):
+    worker, client, ran = make(repo)
+    meta = sessions.new_session("camp")
+    meta.status = "done"
+    sessions.save_meta("camp", meta)
+    st = sessions.load_state("camp", 1)
+    st.transcribed, st.organized_windows, st.images_done, st.answers_applied = ["chunk-0001.wav"], 3, True, True
+    sessions.save_state("camp", 1, st)
+    client.post("/campaigns/camp/sessions/1/process")
+    worker.wait_idle()
+    st = sessions.load_state("camp", 1)
+    assert st.organized_windows == 0 and not st.images_done and not st.answers_applied
+    assert st.transcribed == ["chunk-0001.wav"]

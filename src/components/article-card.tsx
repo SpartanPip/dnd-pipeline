@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TagBadge } from "@/components/tag-badge";
+import { ImagePending } from "@/components/image-pending";
 import type { Article } from "@/lib/content/schema";
 
 /** Compact article preview used on the Articles index and in search results. */
@@ -10,11 +11,17 @@ export function ArticleCard({
   article,
 }: {
   campaignSlug: string;
-  article: Pick<Article, "slug" | "title" | "summary" | "tags" | "image">;
+  article: Pick<Article, "slug" | "title" | "summary" | "tags" | "image"> &
+    Partial<Pick<Article, "imageStatus">>;
 }) {
   return (
     <Card className="overflow-hidden p-0 transition-shadow hover:shadow-md">
       <Link href={`/campaigns/${campaignSlug}/articles/${article.slug}`} className="block">
+        {!article.image && article.imageStatus === "pending" && (
+          <div className="aspect-[16/9] w-full bg-muted">
+            <ImagePending />
+          </div>
+        )}
         {article.image && (
           <div className="relative aspect-[16/9] w-full bg-muted">
             <Image

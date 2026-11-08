@@ -169,6 +169,9 @@ def create_app(worker: Worker) -> FastAPI:
         if not (sessions.session_dir(campaign, n) / "session.json").exists():
             raise HTTPException(404, "Unknown session")
         meta = sessions.load_meta(campaign, n)
+        if meta.status == "done":
+            state = sessions.load_state(campaign, n)
+            sessions.save_state(campaign, n, sessions.SessionState(transcribed=state.transcribed))
         meta.status, meta.message, meta.error = "transcribing", "Queued for processing", None
         sessions.save_meta(campaign, meta)
         worker.submit(Job("process", campaign, n))

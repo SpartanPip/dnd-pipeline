@@ -2,13 +2,13 @@
 
 /**
  * Header shown on every /campaigns/[slug]/* page. Gives one-click access to
- * the three campaign views (Map, Articles, Search) plus a way back to the
+ * the campaign views (Map, Articles, Timeline, Search, Session) plus a way back to the
  * campaign grid — this is the "easy access" nav required alongside each
  * feature's dedicated page.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Map, ScrollText, Search, Home } from "lucide-react";
+import { Map, ScrollText, Search, Home, ListOrdered, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function CampaignHeader({
@@ -24,7 +24,9 @@ export function CampaignHeader({
   const links = [
     { href: `${base}/map`, label: "Map", icon: Map },
     { href: `${base}/articles`, label: "Articles", icon: ScrollText },
+    { href: `${base}/timeline`, label: "Timeline", icon: ListOrdered },
     { href: `${base}/search`, label: "Search", icon: Search },
+    { href: `${base}/session`, label: "Session", icon: Mic },
   ];
 
   return (
